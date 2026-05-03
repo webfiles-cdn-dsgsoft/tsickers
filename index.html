@@ -1,0 +1,201 @@
+<script>
+/**
+ * Скрипт для динамической загрузки стикер-паков из manifest.json
+ * Автоматически создает кнопки для каждого пака при загрузке страницы
+ * 
+ * Как использовать:
+ * 1. Поместите этот скрипт в конец вашего HTML (перед закрывающим </body>)
+ * 2. Или импортируйте как модуль: <script type="module" src="sticker-loader.js"></script>
+ */
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Создаем контейнер для стикер-паков, если его еще нет
+    const container = createStickersContainer();
+    
+    // Показываем индикатор загрузки
+    const loader = createLoader(container);
+    
+    // Загружаем manifest.json
+    fetchStickerPacks(container, loader);
+});
+
+/**
+ * Создает контейнер для отображения стикер-паков
+ * @returns {HTMLElement} Контейнер
+ */
+function createStickersContainer() {
+    let container = document.getElementById('sticker-packs-container');
+    
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'sticker-packs-container';
+        container.className = 'sticker-packs-container';
+        
+        // Базовые стили (можно переопределить в CSS)
+        Object.assign(container.style, {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+            gap: '15px',
+            marginTop: '20px',
+            padding: '10px'
+        });
+        
+        document.body.appendChild(container);
+    }
+    
+    return container;
+}
+
+/**
+ * Создает индикатор загрузки
+ * @param {HTMLElement} container Контейнер для стикер-паков
+ * @returns {HTMLElement} Элемент loader
+ */
+function createLoader(container) {
+    const loader = document.createElement('div');
+    loader.id = 'sticker-loader';
+    loader.textContent = 'Загрузка стикер-паков...';
+    
+    // Стили для loader
+    Object.assign(loader.style, {
+        gridColumn: '1 / -1',
+        textAlign: 'center',
+        padding: '20px',
+        fontSize: '16px',
+        color: '#666'
+    });
+    
+    container.appendChild(loader);
+    return loader;
+}
+
+/**
+ * Загружает и обрабатывает данные из manifest.json
+ * @param {HTMLElement} container Контейнер для стикер-паков
+ * @param {HTMLElement} loader Индикатор загрузки
+ */
+async function fetchStickerPacks(container, loader) {
+    try {
+        const response = await fetch('https://webfiles-cdn-dsgsoft.github.io/stickers/manifest.json');
+        
+        if (!response.ok) {
+            throw new Error(`Ошибка загрузки: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Проверяем, что данные - это массив
+        if (!Array.isArray(data)) {
+            throw new Error('Некорректный формат данных: ожидается массив');
+        }
+        
+        // Очищаем контейнер от предыдущего loader
+        container.innerHTML = '';
+        
+        // Если данных нет
+        if (data.length === 0) {
+            container.innerHTML = '<div class="no-packs">Нет доступных стикер-паков</div>';
+            Object.assign(container.querySelector('.no-packs').style, {
+                gridColumn: '1 / -1',
+                textAlign: 'center',
+                padding: '20px'
+            });
+            return;
+        }
+        
+        // Создаем кнопки для каждого стикер-пака
+        data.forEach(pack => {
+            // Проверяем обязательные поля
+            if (!pack.url || !pack.name) {
+                console.warn('Пропущен пак: отсутствуют обязательные поля', pack);
+                return;
+            }
+            
+            // Формируем корректный URL
+            const fullUrl = pack.url.startsWith('http') 
+                ? pack.url 
+                : `https://${pack.url}`;
+                
+            // Создаем кнопку
+            const button = document.createElement('a');
+            button.href = fullUrl;
+            button.className = 'sticker-pack-button';
+            button.textContent = pack.name;
+            button.target = '_blank';
+            button.rel = 'noopener noreferrer';
+            
+            // Базовые стили кнопки (можно переопределить в CSS)
+            Object.assign(button.style, {
+                display: 'block',
+                padding: '12px 15px',
+                backgroundColor: '#f0f2f5',
+                color: '#000',
+                textDecoration: 'none',
+                borderRadius: '8px',
+                textAlign: 'center',
+                fontWeight: '500',
+                transition: 'all 0.2s',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+            });
+            
+            // Эффект при наведении
+            button.addEventListener('mouseenter', () => {
+                button.style.backgroundColor = '#e4e6eb';
+                button.style.transform = 'translateY(-2px)';
+                button.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+            });
+            
+            button.addEventListener('mouseleave', () => {
+                button.style.backgroundColor = '#f0f2f5';
+                button.style.transform = 'translateY(0)';
+                button.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
+            });
+            
+            container.appendChild(button);
+        });
+        
+    } catch (error) {
+        console.error('Ошибка при загрузке стикер-паков:', error);
+        
+        // Заменяем loader сообщением об ошибке
+        loader.textContent = `Ошибка: ${error.message}. Попробуйте позже.`;
+        loader.style.color = '#e74c3c';
+        
+        // Добавляем кнопку для повторной попытки
+        const retryBtn = document.createElement('button');
+        retryBtn.textContent = 'Попробовать снова';
+        retryBtn.style.marginTop = '10px';
+        retryBtn.style.padding = '8px 15px';
+        retryBtn.style.backgroundColor = '#3498db';
+        retryBtn.style.color = 'white';
+        retryBtn.style.border = 'none';
+        retryBtn.style.borderRadius = '4px';
+        retryBtn.style.cursor = 'pointer';
+        
+        retryBtn.addEventListener('click', () => {
+            loader.textContent = 'Загрузка...';
+            fetchStickerPacks(container, loader);
+        });
+        
+        loader.parentNode.appendChild(retryBtn);
+    }
+}
+</script><style>
+/* Контейнер для стикер-паков */
+.sticker-packs-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Собственные стили для кнопок */
+.sticker-pack-button {
+    background-color: #5a8dee !important;
+    color: white !important;
+    font-weight: 600 !important;
+}
+
+.sticker-pack-button:hover {
+    background-color: #4a7bdd !important;
+    transform: translateY(-3px) !important;
+}
+</style>
